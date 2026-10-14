@@ -1,0 +1,399 @@
+<title>Spicy Shader Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Consola de edición: biblioteca de shaders | visor con el código para Webflow | panel de ajustes */
+:root {
+  color-scheme: dark;
+  --negro: #0b0b0c;
+  --panel: #131314;
+  --panel-alto: #1c1c1e;
+  --linea: #2b2b2e;
+  --texto: #f4f4f4;
+  --tenue: #a3a3a6;
+  --apagado: #737377;
+  --rojo: #e43330;
+  --rojo-suave: rgb(228 51 48 / 0.15);
+  --foco: #8088ff;
+  --sobre-rojo: #ffffff;
+  --f-titulo: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-texto: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--negro);
+  color: var(--texto);
+  font: 14px/1.45 var(--f-texto);
+  padding-inline: 16px;
+  padding-block: 12px;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
+code, .mono { font-family: var(--f-mono); }
+
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+.app, .biblioteca, .biblioteca-lista, .grupo, .centro, .escenario, .salida, .panel-salida, .atributos, .bloque, .campo, .ajustes-cab { grid-template-columns: minmax(0, 1fr); }
+.centro > *, .ajustes > * { min-width: 0; }
+
+.barra-app { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.marca { font: 800 16px/1 var(--f-titulo); font-stretch: 125%; letter-spacing: 0.03em; }
+.producto { font: 500 16px/1 var(--f-titulo); color: var(--tenue); }
+.meta { margin-left: auto; font: 11px/1.2 var(--f-mono); color: var(--apagado); }
+.meta a { color: var(--tenue); text-underline-offset: 2px; }
+.meta a:hover { color: var(--texto); }
+
+.consola {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 228px minmax(0, 1fr) 356px;
+  border: 1px solid var(--linea);
+  border-radius: 14px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.rotulo {
+  margin: 0;
+  font: 650 11px/1.2 var(--f-titulo);
+  font-stretch: 78%;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--tenue);
+}
+
+/* Biblioteca */
+.biblioteca { border-right: 1px solid var(--linea); overflow-y: auto; padding: 14px 12px 20px; display: grid; align-content: start; gap: 18px; }
+.biblioteca-lista { display: grid; gap: 18px; }
+.grupo { display: grid; gap: 8px; }
+.grupo-lista { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ficha {
+  display: grid; gap: 6px; padding: 5px; text-align: left;
+  background: transparent; border: 1px solid transparent; border-radius: 9px;
+}
+.ficha:hover { background: var(--panel-alto); }
+.ficha[aria-pressed="true"] { border-color: var(--rojo); background: var(--rojo-suave); }
+.mini {
+  display: block; aspect-ratio: 16 / 10; border-radius: 6px;
+  background: var(--panel-alto) center / cover no-repeat;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+.ficha-nombre { font-size: 12px; line-height: 1.2; color: var(--texto); }
+
+/* Centro */
+.centro { overflow-y: auto; min-width: 0; display: grid; align-content: start; }
+.barra-visor { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--linea); }
+.control-visor { display: flex; align-items: center; gap: 8px; }
+.control-visor > span { font-size: 12px; color: var(--tenue); }
+
+.segmentos { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px; background: var(--panel-alto); border-radius: 8px; }
+.segmento { flex: 1 1 auto; border: 0; background: transparent; color: var(--tenue); padding: 5px 9px; border-radius: 6px; font-size: 13px; white-space: nowrap; }
+.segmento:hover { color: var(--texto); }
+.segmento[aria-pressed="true"] { background: var(--texto); color: var(--negro); }
+
+.boton { border: 0; background: var(--rojo); color: var(--sobre-rojo); font-weight: 600; padding: 7px 14px; border-radius: 8px; }
+.boton-sec { border: 1px solid var(--linea); background: var(--panel-alto); color: var(--texto); padding: 6px 12px; border-radius: 8px; }
+.boton-sec:hover { border-color: var(--apagado); }
+#pausa { margin-left: auto; min-width: 104px; }
+
+.escenario {
+  --alto: min(54vh, 560px);
+  display: grid; justify-items: center; gap: 10px;
+  padding: 24px 16px 16px;
+  background-color: var(--negro);
+  background-image: radial-gradient(var(--linea) 1px, transparent 1px);
+  background-size: 18px 18px;
+  border-bottom: 1px solid var(--linea);
+}
+.marco {
+  position: relative;
+  width: min(100%, calc(var(--alto) * var(--ratio, 1.7778)));
+  aspect-ratio: var(--ratio, 1.7778);
+  max-width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 0 0 1px var(--linea), 0 20px 60px rgb(0 0 0 / 0.5);
+}
+.marco.es-circulo { border-radius: 50%; }
+#lienzo { position: absolute; inset: 0; }
+.muestra {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
+  padding: clamp(16px, 5%, 44px);
+  color: #ffffff;
+}
+.muestra.es-oscuro { color: #0b0b0c; }
+.es-circulo .muestra { justify-content: center; align-items: center; text-align: center; }
+.muestra-eyebrow { font: 650 12px/1.2 var(--f-titulo); font-stretch: 80%; text-transform: uppercase; letter-spacing: 0.16em; opacity: 0.85; }
+.muestra-titulo { margin: 0; font: 700 clamp(20px, 3.2vw, 44px)/1.04 var(--f-titulo); max-width: 16ch; text-wrap: balance; }
+.hud { display: flex; flex-wrap: wrap; gap: 4px 16px; width: min(100%, calc(var(--alto) * 1.7778)); font: 11px/1.4 var(--f-mono); color: var(--apagado); font-variant-numeric: tabular-nums; }
+#hud-estado { color: var(--rojo); }
+.aviso { margin: 0; width: min(100%, calc(var(--alto) * 1.7778)); font-size: 12px; color: var(--tenue); }
+.error { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; padding: 24px; text-align: center; background: var(--panel-alto); color: var(--texto); }
+
+/* Salida */
+.salida { padding: 14px 16px 22px; display: grid; gap: 14px; min-width: 0; }
+.salida-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.salida-cab h2 { margin: 0; font: 700 18px/1.1 var(--f-titulo); }
+.pestanas { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px; background: var(--panel-alto); border-radius: 8px; }
+.pestana { border: 0; background: transparent; color: var(--tenue); padding: 5px 10px; border-radius: 6px; font-size: 13px; }
+.pestana[aria-selected="true"] { background: var(--texto); color: var(--negro); }
+.panel-salida { display: grid; gap: 12px; min-width: 0; }
+.panel-salida > p, .pasos { margin: 0; color: var(--tenue); max-width: 70ch; }
+.pasos { padding-left: 20px; display: grid; gap: 4px; }
+.pasos strong, .panel-salida strong { color: var(--texto); font-weight: 600; }
+.atributos { display: grid; gap: 6px; }
+.attr-fila {
+  display: grid; grid-template-columns: 150px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 8px 10px; background: var(--panel-alto); border: 1px solid var(--linea); border-radius: 8px;
+}
+.attr-fila code { font-size: 12.5px; overflow-wrap: anywhere; }
+.attr-nombre { color: var(--tenue); }
+.codigo {
+  margin: 0; padding: 12px 14px; overflow-x: auto;
+  background: var(--negro); border: 1px solid var(--linea); border-radius: 8px;
+  font: 12.5px/1.55 var(--f-mono); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+textarea.codigo { width: 100%; resize: vertical; color: var(--tenue); white-space: pre; overflow-wrap: normal; }
+.fila-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.nota { font-size: 12px; color: var(--apagado); }
+#importar-texto { min-height: 96px; color: var(--texto); }
+#importar-estado { font-size: 13px; color: var(--tenue); }
+
+/* Ajustes */
+.ajustes { border-left: 1px solid var(--linea); min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.ajustes-cab { padding: 14px 16px; border-bottom: 1px solid var(--linea); display: grid; gap: 4px; }
+.ajustes-titulo { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+#ajustes-nombre { margin: 0; font: 750 22px/1.05 var(--f-titulo); font-stretch: 92%; }
+#ajustes-id { font-size: 11px; color: var(--apagado); }
+#ajustes-desc { margin: 0; font-size: 13px; color: var(--tenue); }
+#ajustes-cuerpo { overflow-y: auto; }
+.bloque { padding: 14px 16px; border-bottom: 1px solid var(--linea); display: grid; gap: 12px; }
+details.bloque > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+details.bloque > summary::before { content: "+"; font: 600 14px/1 var(--f-mono); color: var(--apagado); width: 10px; }
+details.bloque[open] > summary::before { content: "−"; }
+.pie-ajustes { border-bottom: 0; }
+
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.preset {
+  display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px 5px 7px;
+  border: 1px solid var(--linea); border-radius: 999px; background: var(--panel-alto); font-size: 13px;
+}
+.preset:hover { border-color: var(--apagado); }
+.preset[aria-pressed="true"] { border-color: var(--rojo); background: var(--rojo-suave); }
+.preset-colores { display: inline-flex; }
+.preset-colores i { width: 12px; height: 12px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 1.5px var(--panel-alto); }
+.preset-colores i + i { margin-left: -4px; }
+
+.campo { display: grid; gap: 6px; }
+.campo-cab { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.campo-nombre { font-weight: 550; }
+.campo-cab code { font-size: 11px; color: var(--apagado); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.es-modificado > .campo-cab .campo-nombre::after, .es-modificado .ranura-nombre::after {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--rojo); vertical-align: middle;
+}
+.valor {
+  margin-left: auto; width: 76px; padding: 3px 6px; text-align: right;
+  background: var(--panel-alto); border: 1px solid var(--linea); border-radius: 6px;
+  font: 12px/1.4 var(--f-mono); font-variant-numeric: tabular-nums;
+}
+input[type="range"] { width: 100%; margin: 0; accent-color: var(--rojo); }
+.ayuda { margin: 0; font-size: 12px; line-height: 1.35; color: var(--apagado); }
+.selector { width: 100%; padding: 6px 8px; background: var(--panel-alto); border: 1px solid var(--linea); border-radius: 8px; }
+.interruptor {
+  appearance: none; margin: 0 0 0 auto; width: 34px; height: 20px; border-radius: 10px;
+  background: var(--linea); position: relative; cursor: pointer; flex: none;
+}
+.interruptor::before { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--texto); }
+.interruptor:checked { background: var(--rojo); }
+.interruptor:checked::before { left: 17px; }
+
+.paleta-cab { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--tenue); }
+.paleta { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.paleta-color { aspect-ratio: 1; padding: 0; border-radius: 6px; background: var(--c); border: 1px solid rgb(255 255 255 / 0.16); }
+.paleta-color:hover { transform: translateY(-1px); }
+.ranura {
+  display: grid; grid-template-columns: 30px minmax(0, 1fr) 96px 26px; align-items: center; gap: 8px;
+  padding: 4px; border: 1px solid transparent; border-radius: 8px;
+}
+.ranura.es-activa { border-color: var(--rojo); background: var(--rojo-suave); }
+.chip-color {
+  position: relative; width: 30px; height: 30px; border-radius: 7px;
+  background: linear-gradient(var(--c), var(--c)), repeating-conic-gradient(#6b6b6e 0 25%, #a3a3a6 0 50%) 0 0 / 10px 10px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
+}
+.chip-color:focus-within { outline: 2px solid var(--foco); outline-offset: 2px; }
+.muestra-color { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.ranura-nombre { font-size: 13px; color: var(--texto); min-width: 0; }
+.hex { width: 100%; padding: 4px 6px; background: var(--panel-alto); border: 1px solid var(--linea); border-radius: 6px; font: 12px/1.4 var(--f-mono); text-transform: lowercase; }
+.quitar { width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--apagado); font-size: 16px; line-height: 1; }
+.quitar:hover { background: var(--panel-alto); color: var(--texto); }
+.agregar { justify-self: start; border: 1px dashed var(--linea); background: transparent; color: var(--tenue); padding: 5px 10px; border-radius: 8px; font-size: 13px; }
+.agregar:hover { color: var(--texto); border-color: var(--apagado); }
+
+.taller { position: fixed; right: 0; bottom: 0; width: 240px; height: 150px; opacity: 0; pointer-events: none; z-index: -1; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .ficha, .preset, .segmento, .pestana, .paleta-color { transition: background-color 0.15s, border-color 0.15s, color 0.15s, transform 0.15s; }
+}
+
+/* Tableta: la biblioteca pasa a una tira horizontal */
+@media (max-width: 1179px) {
+  .consola { grid-template-columns: minmax(0, 1fr) 336px; grid-template-rows: auto minmax(0, 1fr); }
+  .biblioteca { grid-column: 1 / -1; border-right: 0; border-bottom: 1px solid var(--linea); overflow: visible; padding: 10px 12px; }
+  .biblioteca > .rotulo { display: none; }
+  .biblioteca-lista { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px; }
+  .grupo { flex: none; }
+  .grupo-lista { display: flex; }
+  .ficha { width: 112px; flex: none; }
+}
+
+/* Teléfono: una sola columna; la vista previa queda fija arriba mientras se ajusta */
+@media (max-width: 759px) {
+  html, body { height: auto; }
+  .app { height: auto; }
+  .consola { display: flex; flex-direction: column; overflow: visible; }
+  .centro { display: contents; }
+  .biblioteca { order: 0; }
+  .barra-visor { order: 1; }
+  .escenario {
+    order: 2; --alto: 34vh;
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 3;
+    padding: 12px 16px 10px;
+  }
+  .ajustes { order: 3; overflow: visible; border-left: 0; display: block; }
+  .salida { order: 4; border-top: 1px solid var(--linea); }
+  #ajustes-cuerpo { overflow: visible; }
+  .attr-fila { grid-template-columns: minmax(0, 1fr) auto; }
+  .attr-fila .attr-nombre { grid-column: 1 / -1; }
+  .meta { margin-left: 0; width: 100%; }
+}
+</style>
+
+<div class="app">
+  <header class="barra-app">
+    <span class="marca">SPICY RNDR</span>
+    <span class="producto">Shader Lab</span>
+    <span class="meta">20 shaders · <a href="https://shaders.paper.design" target="_blank" rel="noopener">Powered by Paper Shaders</a> 0.0.81 · se guarda en este navegador</span>
+  </header>
+
+  <main class="consola">
+    <nav class="biblioteca" aria-label="Shaders">
+      <h2 class="rotulo">Shaders</h2>
+      <div id="biblioteca-lista" class="biblioteca-lista"></div>
+    </nav>
+
+    <section class="centro" aria-label="Vista previa y código">
+      <div class="barra-visor">
+        <div class="control-visor">
+          <span id="lbl-forma">Forma</span>
+          <div class="segmentos" role="group" aria-labelledby="lbl-forma">
+            <button type="button" class="segmento" data-aspecto="seccion">Sección</button>
+            <button type="button" class="segmento" data-aspecto="tarjeta">Tarjeta</button>
+            <button type="button" class="segmento" data-aspecto="banda">Banda</button>
+            <button type="button" class="segmento" data-aspecto="circulo">Círculo</button>
+          </div>
+        </div>
+        <div class="control-visor">
+          <span id="lbl-texto">Texto</span>
+          <div class="segmentos" role="group" aria-labelledby="lbl-texto">
+            <button type="button" class="segmento" data-texto="claro">Claro</button>
+            <button type="button" class="segmento" data-texto="oscuro">Oscuro</button>
+            <button type="button" class="segmento" data-texto="ninguno">Sin texto</button>
+          </div>
+        </div>
+        <button type="button" id="pausa" class="boton-sec" aria-pressed="false">Pausar</button>
+      </div>
+
+      <div class="escenario">
+        <div id="marco" class="marco">
+          <div id="lienzo"></div>
+          <div id="muestra" class="muestra">
+            <span class="muestra-eyebrow">Producción audiovisual</span>
+            <p class="muestra-titulo">Historias que se ven y se escuchan</p>
+          </div>
+          <div id="error-visor" class="error" hidden>Este navegador no pudo iniciar WebGL 2, que es lo que necesitan los shaders. Pruebe con Chrome, Edge, Firefox o Safari actualizados.</div>
+        </div>
+        <div class="hud" aria-live="polite"><span id="hud-id"></span><span id="hud-res"></span><span id="hud-estado"></span></div>
+        <p id="aviso-movimiento" class="aviso" hidden>Su sistema pide reducir el movimiento, así que la vista previa empieza en pausa. En el sitio, el fondo también queda fijo para quien tenga esa preferencia.</p>
+      </div>
+
+      <div class="salida">
+        <div class="salida-cab">
+          <h2>Llevarlo a Webflow</h2>
+          <div class="pestanas" role="tablist" aria-label="Formato del código">
+            <button type="button" role="tab" class="pestana" id="tab-atributos" data-pestana="atributos" aria-controls="panel-atributos">Atributos</button>
+            <button type="button" role="tab" class="pestana" id="tab-embed" data-pestana="embed" aria-controls="panel-embed">Code Embed</button>
+            <button type="button" role="tab" class="pestana" id="tab-script" data-pestana="script" aria-controls="panel-script">Script del sitio</button>
+            <button type="button" role="tab" class="pestana" id="tab-importar" data-pestana="importar" aria-controls="panel-importar">Importar</button>
+          </div>
+        </div>
+
+        <div id="panel-atributos" class="panel-salida" role="tabpanel" aria-labelledby="tab-atributos">
+          <ol class="pasos">
+            <li>En el Designer, seleccione el Div que hará de fondo. Debe tener posición <strong>absolute</strong> en 0 por los cuatro lados dentro de un contenedor con posición <strong>relative</strong>.</li>
+            <li>Abra <strong>Element settings → Custom attributes</strong> y agregue estos atributos.</li>
+            <li>Publique para verlo. El código personalizado no corre en el canvas del Designer.</li>
+          </ol>
+          <div class="atributos">
+            <div class="attr-fila">
+              <code class="attr-nombre">data-shader</code>
+              <code id="attr-shader"></code>
+              <button type="button" class="boton-sec" data-copiar="#attr-shader">Copiar</button>
+            </div>
+            <div class="attr-fila" id="fila-params">
+              <code class="attr-nombre">data-shader-params</code>
+              <code id="attr-params"></code>
+              <button type="button" class="boton-sec" data-copiar="#attr-params">Copiar</button>
+            </div>
+          </div>
+          <p id="sin-params" class="nota" hidden>Con los valores base no hace falta <code>data-shader-params</code>.</p>
+        </div>
+
+        <div id="panel-embed" class="panel-salida" role="tabpanel" aria-labelledby="tab-embed" hidden>
+          <p>Pegue esto en un elemento <strong>Code Embed</strong> dentro del contenedor. El contenedor necesita posición <strong>relative</strong>; si tiene esquinas redondeadas o es un círculo, también <strong>overflow hidden</strong>.</p>
+          <pre id="embed-codigo" class="codigo"></pre>
+          <div class="fila-acciones"><button type="button" class="boton" data-copiar="#embed-codigo">Copiar Code Embed</button></div>
+        </div>
+
+        <div id="panel-script" class="panel-salida" role="tabpanel" aria-labelledby="tab-script" hidden>
+          <p>Se pega <strong>una sola vez</strong> en <strong>Site settings → Custom code → Footer code</strong>, en lugar del script anterior de grain-gradient. Sirve para los 20 shaders y para todos los fondos que agregue después.</p>
+          <textarea id="script-codigo" class="codigo" rows="6" readonly aria-label="Script del sitio" spellcheck="false"></textarea>
+          <div class="fila-acciones">
+            <button type="button" class="boton" data-copiar="#script-codigo">Copiar script</button>
+            <span id="script-tamano" class="nota"></span>
+          </div>
+        </div>
+
+        <div id="panel-importar" class="panel-salida" role="tabpanel" aria-labelledby="tab-importar" hidden>
+          <p>Para retocar un fondo que ya está en el sitio, pegue aquí su Code Embed, sus atributos o solo el JSON de <code>data-shader-params</code>.</p>
+          <form id="importar-form" class="panel-salida">
+            <textarea id="importar-texto" class="codigo" spellcheck="false" aria-label="Configuración a importar" placeholder='&lt;div data-shader="mesh-gradient" data-shader-params=&apos;{"colors":["#e43330","#000000"]}&apos;&gt;&lt;/div&gt;'></textarea>
+            <div class="fila-acciones">
+              <button type="submit" class="boton">Cargar en el editor</button>
+              <output id="importar-estado" for="importar-texto" aria-live="polite"></output>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <aside class="ajustes" aria-label="Ajustes del shader">
+      <div class="ajustes-cab">
+        <div class="ajustes-titulo"><h2 id="ajustes-nombre"></h2><code id="ajustes-id"></code></div>
+        <p id="ajustes-desc"></p>
+      </div>
+      <div id="ajustes-cuerpo"></div>
+    </aside>
+  </main>
+</div>
+
+<script type="module">
+/*BUNDLE*/
+</script>

@@ -1,0 +1,12 @@
+{
+  "name": "spicy-shader-lab",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@paper-design/shaders": "0.0.81",
+    "esbuild": "0.23.1"
+  }
+}
