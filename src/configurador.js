@@ -1,9 +1,11 @@
 import { SHADERS } from "./registro.js";
-import { texturasListas, montar, actualizar, desmontar } from "./montaje.js";
-import { GRUPOS, SHADER_ES, PARAM_ES, OPCION_ES, MAX_COLORES, MARCA, PRESETS_EXTRA } from "./textos.js";
+import { texturasListas, preparar, crearMount, aplicar, desmontar } from "./montaje.js";
+import { GRUPOS, SHADER_ES, PARAM_ES, OPCION_ES, MAX_COLORES, MARCA, PRESETS_EXTRA, TIPO_IMAGEN } from "./textos.js";
 import scriptSitio from "../dist/sitio.txt";
+import logoMuestra from "../muestras/logo-spicy.png";
+import fotoMuestra from "../muestras/foto-fuego.jpg";
 
-const OCULTOS = new Set(["frame", "width", "height", "worldWidth", "worldHeight", "originX", "originY", "minPixelRatio", "maxPixelCount"]);
+const OCULTOS = new Set(["frame", "width", "height", "worldWidth", "worldHeight", "originX", "originY", "minPixelRatio", "maxPixelCount", "image", "suspendWhenProcessingImage"]);
 const ENCUADRE = new Set(["scale", "rotation", "offsetX", "offsetY", "fit"]);
 const ASPECTOS = {
   seccion: { ratio: 16 / 9, nombre: "Sección 16:9" },
@@ -13,7 +15,9 @@ const ASPECTOS = {
 };
 const CLAVE_GUARDADO = "spicy-shader-lab-v1";
 const reducirMovimiento = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const SCRIPT_FOOTER = `<script type="module">\n${scriptSitio.trim()}\n<\/script>`;
+const SCRIPT_COMPLETO = `<script type="module">\n${scriptSitio.trim()}\n<\/script>`;
+const SCRIPT_ALOJADO = `<script type="module" src="https://shaderlab.spicyrender.studio/sitio/v1/shaders.js"><\/script>`;
+const MUESTRAS = { logo: logoMuestra, foto: fotoMuestra };
 
 const $ = (sel, raiz = document) => raiz.querySelector(sel);
 const crear = (etiqueta, props = {}, ...hijos) => {
@@ -22,6 +26,7 @@ const crear = (etiqueta, props = {}, ...hijos) => {
     if (k === "class") el.className = v;
     else if (k === "text") el.textContent = v;
     else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k.startsWith("aria-")) el.setAttribute(k, String(v));
     else if (v === true) el.setAttribute(k, "");
     else if (v !== false && v != null) el.setAttribute(k, v);
   }
@@ -39,9 +44,11 @@ function presetsDe(id) {
 }
 const nombrePreset = (n) => (n === "Default" ? "Base" : n);
 const paramsVisibles = (id) => SHADERS[id].def.params.filter((p) => !OCULTOS.has(p.name));
+const sinImagen = (params) => { const { image, ...resto } = params; return resto; };
 function textoParam(id, nombre, defDesc) {
   return PARAM_ES[`${id}.${nombre}`] ?? PARAM_ES[nombre] ?? [nombre, defDesc ?? ""];
 }
+const textoOpcion = (param, valor) => OPCION_ES[`${param}.${valor}`] ?? OPCION_ES[valor] ?? valor;
 
 function pasoDe(p) {
   if (p.step) return p.step;
@@ -65,7 +72,8 @@ function iguales(a, b) {
 function diferencias(id, params) {
   const base = SHADERS[id].presets[0].params;
   const orden = SHADERS[id].def.params.map((p) => p.name);
-  const claves = Object.keys(params).sort((a, b) => (orden.indexOf(a) + 1 || 99) - (orden.indexOf(b) + 1 || 99));
+  const claves = Object.keys(params).filter((k) => k !== "image")
+    .sort((a, b) => (orden.indexOf(a) + 1 || 99) - (orden.indexOf(b) + 1 || 99));
   const out = {};
   for (const k of claves) {
     if (iguales(params[k], base[k])) continue;
@@ -76,61 +84,117 @@ function diferencias(id, params) {
 
 // ---------- Estado ----------
 
+const imagenPorDefecto = (id) => ({ tipo: TIPO_IMAGEN[id] ?? "foto", url: "" });
+
 function estadoInicial() {
+  const base = { pausado: reducirMovimiento, ranura: "colors.0" };
   try {
     const g = JSON.parse(localStorage.getItem(CLAVE_GUARDADO) ?? "null");
     if (g && SHADERS[g.id]) {
+      const imagen = ["logo", "foto", "ninguna"].includes(g.imagen?.tipo) || (g.imagen?.tipo === "url" && g.imagen.url)
+        ? { tipo: g.imagen.tipo, url: g.imagen.url ?? "" } : imagenPorDefecto(g.id);
       return {
-        id: g.id,
-        params: { ...SHADERS[g.id].presets[0].params, ...g.params },
+        ...base, id: g.id, imagen,
+        params: { ...SHADERS[g.id].presets[0].params, ...sinImagen(g.params ?? {}) },
         preset: g.preset ?? null,
         aspecto: ASPECTOS[g.aspecto] ? g.aspecto : "seccion",
         texto: ["claro", "oscuro", "ninguno"].includes(g.texto) ? g.texto : "claro",
-        pausado: reducirMovimiento,
-        ranura: "colors.0",
         pestana: g.pestana ?? "atributos",
       };
     }
   } catch {}
   const spicy = presetsDe("grain-gradient")[0];
   return {
-    id: "grain-gradient", params: clonar(spicy.params), preset: spicy.name, aspecto: "seccion",
-    texto: "claro", pausado: reducirMovimiento, ranura: "colors.0", pestana: "atributos",
+    ...base, id: "grain-gradient", params: clonar(spicy.params), preset: spicy.name, imagen: imagenPorDefecto("grain-gradient"),
+    aspecto: "seccion", texto: "claro", pestana: "atributos",
   };
 }
 const estado = estadoInicial();
 
 function guardar() {
   try {
+    // Un archivo subido vive solo en esta pestaña: al volver se usa la muestra
+    const imagen = estado.imagen.tipo === "archivo" ? imagenPorDefecto(estado.id) : estado.imagen;
     localStorage.setItem(CLAVE_GUARDADO, JSON.stringify({
-      id: estado.id, params: diferencias(estado.id, estado.params), preset: estado.preset,
+      id: estado.id, params: diferencias(estado.id, estado.params), preset: estado.preset, imagen,
       aspecto: estado.aspecto, texto: estado.texto, pestana: estado.pestana,
     }));
   } catch {}
 }
+
+function urlImagen() {
+  const { tipo, url } = estado.imagen;
+  if (tipo === "logo" || tipo === "foto") return MUESTRAS[tipo];
+  if (tipo === "archivo" || tipo === "url") return url;
+  return "";
+}
+const paramsVisor = () => (SHADERS[estado.id].usaImagen ? { ...estado.params, image: urlImagen() } : estado.params);
 
 // ---------- Visor ----------
 
 const lienzo = $("#lienzo");
 const marco = $("#marco");
 let mount = null;
+let montando = false;
+let turnoMontaje = 0;
+let turnoValores = 0;
+let versionValores = 0;
 
-function montarVisor() {
+// Muestra «Procesando…» solo si la preparación tarda (logos e imágenes grandes)
+async function conAviso(promesa) {
+  const t = setTimeout(() => { $("#procesando").hidden = false; }, 150);
+  try { return await promesa; } finally { clearTimeout(t); $("#procesando").hidden = true; }
+}
+
+function mostrarError(e) {
+  console.error(e);
+  const imagen = SHADERS[estado.id].usaImagen && /imagen/i.test(String(e?.message));
+  $("#error-visor").textContent = imagen
+    ? (estado.imagen.tipo === "url"
+      ? "No se pudo cargar la imagen de esa URL. Revise que sea pública (las de Webflow sirven). Si está usando el Shader Lab dentro de claude.ai, ahí no se pueden cargar imágenes de otros sitios: ábralo en shaderlab.spicyrender.studio o suba el archivo."
+      : "No se pudo cargar la imagen. Pruebe con un PNG, JPG o WebP.")
+    : "Este navegador no pudo iniciar WebGL 2, que es lo que necesitan los shaders. Pruebe con Chrome, Edge, Firefox o Safari actualizados.";
+  $("#error-visor").hidden = false;
+}
+
+async function montarVisor() {
+  const t = ++turnoMontaje;
+  const version = versionValores;
+  montando = true;
+  let salida;
+  try {
+    salida = await conAviso(preparar(SHADERS[estado.id], paramsVisor()));
+  } catch (e) {
+    if (t === turnoMontaje) { montando = false; mostrarError(e); }
+    return;
+  }
+  if (t !== turnoMontaje) return;
+  montando = false;
   desmontar(mount);
   mount = null;
   $("#error-visor").hidden = true;
   try {
-    mount = montar(lienzo, SHADERS[estado.id], estado.params, { pausado: estado.pausado });
+    mount = crearMount(lienzo, salida, { pausado: estado.pausado });
   } catch (e) {
-    console.error(e);
-    $("#error-visor").hidden = false;
+    mostrarError(e);
   }
   actualizarHud();
   requestAnimationFrame(() => setTimeout(actualizarHud, 0));
+  if (version !== versionValores) refrescarVisor();
 }
 
-function refrescarVisor() {
-  if (mount) actualizar(mount, SHADERS[estado.id], estado.params, { pausado: estado.pausado });
+async function refrescarVisor() {
+  if (!mount || montando) return;
+  const t = ++turnoValores;
+  const m = mount;
+  try {
+    const salida = await conAviso(preparar(SHADERS[estado.id], paramsVisor()));
+    if (t !== turnoValores || m !== mount) return;
+    aplicar(m, salida, { pausado: estado.pausado });
+    $("#error-visor").hidden = true;
+  } catch (e) {
+    if (t === turnoValores) mostrarError(e);
+  }
 }
 
 function actualizarHud() {
@@ -196,9 +260,11 @@ async function generarMiniaturas() {
   for (const g of GRUPOS) {
     for (const id of g.ids) {
       const mini = $(`.ficha[data-id="${id}"] .mini`);
+      const entrada = SHADERS[id];
+      const params = entrada.usaImagen ? { ...entrada.presets[0].params, image: MUESTRAS[TIPO_IMAGEN[id] ?? "foto"] } : entrada.presets[0].params;
       let m = null;
       try {
-        m = montar(taller, SHADERS[id], SHADERS[id].presets[0].params, { pausado: true, atributosGL: { preserveDrawingBuffer: true } });
+        m = crearMount(taller, await preparar(entrada, params), { pausado: true, atributosGL: { preserveDrawingBuffer: true } });
         await trasUnCuadro();
         mini.style.backgroundImage = `url(${m.canvasElement.toDataURL("image/jpeg", 0.8)})`;
       } catch (e) {
@@ -217,6 +283,9 @@ function elegirShader(id) {
   estado.params = clonar(p.params);
   estado.preset = p.name;
   estado.ranura = "colors.0";
+  // Una imagen propia se conserva al cambiar de shader; las muestras se ajustan al tipo de shader
+  if (SHADERS[id].usaImagen && !["archivo", "url"].includes(estado.imagen.tipo)) estado.imagen = imagenPorDefecto(id);
+  versionValores++;
   marcarFicha();
   montarVisor();
   construirAjustes();
@@ -229,6 +298,7 @@ function elegirShader(id) {
 function cambiar(nombre, valor, { reconstruir = false } = {}) {
   estado.params[nombre] = valor;
   estado.preset = null;
+  versionValores++;
   refrescarVisor();
   if (reconstruir) construirAjustes();
   else {
@@ -239,17 +309,23 @@ function cambiar(nombre, valor, { reconstruir = false } = {}) {
   guardar();
 }
 
-// Mismo shader: basta con cambiar valores, sin recompilar
-function cargarValores() {
-  if (!mount) return montarVisor();
-  refrescarVisor();
-  mount.setFrame(estado.params.frame ?? 0);
-}
-
 function aplicarPreset(p) {
   estado.params = clonar(p.params);
   estado.preset = p.name;
-  cargarValores();
+  versionValores++;
+  // Mismo shader: basta con cambiar valores, sin recompilar
+  refrescarVisor();
+  mount?.setFrame(estado.params.frame ?? 0);
+  construirAjustes();
+  renderSalida();
+  guardar();
+}
+
+function cambiarImagen(imagen) {
+  if (estado.imagen.tipo === "archivo" && estado.imagen.url !== imagen.url) URL.revokeObjectURL(estado.imagen.url);
+  estado.imagen = imagen;
+  versionValores++;
+  refrescarVisor();
   construirAjustes();
   renderSalida();
   guardar();
@@ -380,6 +456,55 @@ function bloqueColores(id, colorParams) {
   return cont;
 }
 
+function bloqueImagen(id) {
+  const esLogo = TIPO_IMAGEN[id] === "logo";
+  const { tipo, url } = estado.imagen;
+  const opciones = [["logo", "Logo Spicy"], ["foto", "Foto"], ["ninguna", "Sin imagen"]];
+  const segmentos = crear("div", { class: "segmentos", role: "group", "aria-label": "Imagen de muestra" },
+    ...opciones.map(([valor, texto]) => crear("button", {
+      type: "button", class: "segmento", "aria-pressed": tipo === valor, text: texto,
+      onclick: () => cambiarImagen({ tipo: valor, url: "" }),
+    })));
+  const archivo = crear("input", {
+    type: "file", id: "imagen-archivo", accept: "image/png,image/jpeg,image/webp,image/svg+xml", class: "oculto",
+    onchange: (e) => {
+      const f = e.target.files?.[0];
+      if (f) cambiarImagen({ tipo: "archivo", url: URL.createObjectURL(f), nombre: f.name });
+    },
+  });
+  const campoUrl = crear("input", {
+    type: "url", id: "imagen-url", class: "hex url", placeholder: "https://cdn.prod.website-files.com/…", value: tipo === "url" ? url : "",
+    spellcheck: "false", "aria-label": "URL de la imagen",
+  });
+  const usarUrl = () => {
+    const v = campoUrl.value.trim();
+    if (/^https:\/\/\S+$/i.test(v)) {
+      cambiarImagen({ tipo: "url", url: v });
+      return;
+    }
+    campoUrl.setCustomValidity("Escriba una URL que empiece con https://");
+    campoUrl.reportValidity();
+    campoUrl.setCustomValidity("");
+  };
+  campoUrl.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); usarUrl(); } });
+  const actual = tipo === "archivo" ? `Archivo: ${estado.imagen.nombre ?? "propio"}` : tipo === "url" ? "Imagen desde su URL" : null;
+
+  return crear("div", { class: "bloque" },
+    crear("h3", { class: "rotulo", text: esLogo ? "Logo" : "Imagen" }),
+    segmentos,
+    crear("div", { class: "fila-imagen" },
+      crear("label", { class: "boton-sec", for: "imagen-archivo", text: "Subir archivo" }), archivo,
+      actual ? crear("span", { class: "nota", text: actual }) : null),
+    crear("div", { class: "campo" },
+      crear("label", { class: "campo-nombre", for: "imagen-url", text: "URL de Webflow" }),
+      crear("div", { class: "fila-imagen" }, campoUrl, crear("button", { type: "button", class: "boton-sec", text: "Usar", onclick: usarUrl }))),
+    crear("p", { class: "ayuda", text: id === "heatmap"
+      ? "Use el logo en negro u oscuro sobre fondo transparente o blanco: el calor sigue las zonas oscuras, así que un logo blanco no se ve."
+      : esLogo
+        ? "Use un PNG o SVG con fondo transparente: la silueta sale de la transparencia. Sin imagen, el efecto usa la forma elegida abajo."
+        : "PNG, JPG o WebP. Las imágenes de Assets y del CMS de Webflow sirven tal cual." }));
+}
+
 function campoNumero(id, p) {
   const [etiqueta, ayuda] = textoParam(id, p.name, p.description);
   const min = p.min ?? (p.name === "speed" ? 0 : -1);
@@ -414,13 +539,13 @@ function campoOpciones(id, p) {
     control = crear("div", { class: "segmentos", role: "group", "aria-label": etiqueta });
     for (const o of opciones) {
       control.append(crear("button", {
-        type: "button", class: "segmento", "aria-pressed": o === valor, text: OPCION_ES[o] ?? o,
+        type: "button", class: "segmento", "aria-pressed": o === valor, text: textoOpcion(p.name, o),
         onclick: (e) => { cambiar(p.name, o); for (const b of control.children) b.setAttribute("aria-pressed", b === e.currentTarget); },
       }));
     }
   } else {
     control = crear("select", { id: `p-${p.name}`, class: "selector", onchange: (e) => cambiar(p.name, e.target.value) },
-      ...opciones.map((o) => crear("option", { value: o, selected: o === valor, text: OPCION_ES[o] ?? o })));
+      ...opciones.map((o) => crear("option", { value: o, selected: o === valor, text: textoOpcion(p.name, o) })));
   }
   return crear("div", { class: "campo", "data-param": p.name },
     crear("div", { class: "campo-cab" }, crear(opciones.length <= 4 ? "span" : "label", { class: "campo-nombre", for: opciones.length <= 4 ? null : `p-${p.name}`, text: etiqueta }), crear("code", { text: p.name })),
@@ -471,6 +596,7 @@ function construirAjustes() {
   const encuadre = visibles.filter((p) => ENCUADRE.has(p.name));
 
   const hijos = [crear("div", { class: "bloque" }, crear("h3", { class: "rotulo", text: "Punto de partida" }), presets)];
+  if (SHADERS[id].usaImagen) hijos.push(bloqueImagen(id));
   if (colorParams.length) hijos.push(bloqueColores(id, colorParams));
   if (propios.length) hijos.push(crear("div", { class: "bloque" }, crear("h3", { class: "rotulo", text: "Forma y textura" }), ...propios.map((p) => campo(id, p))));
   hijos.push(crear("div", { class: "bloque" }, crear("h3", { class: "rotulo", text: "Movimiento" }),
@@ -490,17 +616,23 @@ function construirAjustes() {
 
 function jsonParams() {
   const d = diferencias(estado.id, estado.params);
+  // Solo una URL pública viaja en los atributos; las muestras y los archivos se ponen en Webflow como imagen
+  if (SHADERS[estado.id].usaImagen && estado.imagen.tipo === "url") d.image = estado.imagen.url;
   return Object.keys(d).length ? JSON.stringify(d) : "";
 }
 
 function renderSalida() {
   const json = jsonParams();
+  const usaImagen = SHADERS[estado.id].usaImagen;
+  const imagenFuera = usaImagen && estado.imagen.tipo !== "url" && estado.imagen.tipo !== "ninguna";
   $("#attr-shader").textContent = estado.id;
   $("#fila-params").hidden = !json;
   $("#attr-params").textContent = json;
   $("#sin-params").hidden = Boolean(json);
+  $("#nota-imagen").hidden = !imagenFuera;
   const attrParams = json ? ` data-shader-params='${json.replace(/'/g, "&#39;")}'` : "";
-  $("#embed-codigo").textContent = `<div data-shader="${estado.id}"${attrParams} style="position:absolute;inset:0"></div>`;
+  const img = imagenFuera ? `\n  <img src="URL-DE-SU-IMAGEN" alt="" style="width:100%;height:100%;object-fit:cover">\n` : "";
+  $("#embed-codigo").textContent = `<div data-shader="${estado.id}"${attrParams} style="position:absolute;inset:0">${img}</div>`;
 }
 
 function mostrarPestana(nombre) {
@@ -549,8 +681,9 @@ for (const b of document.querySelectorAll("[data-copiar]")) {
   });
 }
 
-$("#script-codigo").value = SCRIPT_FOOTER;
-$("#script-tamano").textContent = `${SCRIPT_FOOTER.length.toLocaleString("es-MX")} caracteres`;
+$("#script-alojado").textContent = SCRIPT_ALOJADO;
+$("#script-codigo").value = SCRIPT_COMPLETO;
+$("#script-tamano").textContent = `${SCRIPT_COMPLETO.length.toLocaleString("es-MX")} caracteres`;
 
 // ---------- Importar ----------
 
@@ -574,17 +707,22 @@ function importar(texto) {
   const conocidos = new Set(SHADERS[nuevo].def.params.map((p) => p.name));
   const ignorados = Object.keys(params).filter((k) => !conocidos.has(k));
   for (const k of ignorados) delete params[k];
+  if (SHADERS[nuevo].usaImagen) {
+    estado.imagen = typeof params.image === "string" && /^https:\/\//i.test(params.image)
+      ? { tipo: "url", url: params.image } : (["archivo", "url"].includes(estado.imagen.tipo) ? estado.imagen : imagenPorDefecto(nuevo));
+  }
   estado.id = nuevo;
-  estado.params = { ...clonar(SHADERS[nuevo].presets[0].params), ...params };
+  estado.params = { ...clonar(SHADERS[nuevo].presets[0].params), ...sinImagen(params) };
   estado.preset = null;
+  versionValores++;
   marcarFicha();
-  if (mismo) cargarValores();
+  if (mismo) refrescarVisor();
   else montarVisor();
   construirAjustes();
   renderSalida();
   guardar();
-  return `Cargado: ${SHADER_ES[nuevo][0]}${Object.keys(params).length ? ` con ${Object.keys(params).length} ajustes` : ""}.`
-    + (ignorados.length ? ` Se ignoraron: ${ignorados.join(", ")}.` : "");
+  const n = Object.keys(params).length;
+  return `Cargado: ${SHADER_ES[nuevo][0]}${n ? ` con ${n} ajustes` : ""}.` + (ignorados.length ? ` Se ignoraron: ${ignorados.join(", ")}.` : "");
 }
 $("#importar-form").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -600,11 +738,8 @@ construirAjustes();
 renderSalida();
 mostrarPestana(estado.pestana);
 
-texturasListas.then(() => {
-  montarVisor();
+texturasListas.then(async () => {
+  await montarVisor();
   aplicarPausa();
   setTimeout(generarMiniaturas, 300);
-}).catch((e) => {
-  console.error(e);
-  $("#error-visor").hidden = false;
-});
+}).catch((e) => mostrarError(e));

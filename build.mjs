@@ -3,9 +3,34 @@
 import { build } from "esbuild";
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, readdirSync, cpSync } from "node:fs";
 
+// 0. Registros generados a partir de src/shaders/ (agregar un shader = copiar su envoltorio y su definición)
+const archivos = readdirSync("src/shaders").filter((f) => f.endsWith(".js")).sort();
+const exportsDe = (texto) => texto.match(/export \{([^}]*)\};/)[1].split(",").map((n) => n.trim()).filter(Boolean);
+const generado = "// Generado por build.mjs a partir de src/shaders/. No editar.";
+const importsLab = [], importsSitio = [], reexports = [], filasLab = [], filasSitio = [], filasRemoto = [];
+for (const archivo of archivos) {
+  const id = archivo.replace(/\.js$/, "");
+  const texto = readFileSync(`src/shaders/${archivo}`, "utf8");
+  const nombres = exportsDe(texto);
+  const comp = nombres.find((n) => /^[A-Z]/.test(n));
+  const lista = nombres.find((n) => /Presets$/.test(n));
+  const def = lista.replace(/Presets$/, "Def");
+  const usaImagen = /\bu_image\b/.test(texto);
+  importsLab.push(`import { ${comp}, ${lista} } from "./shaders/${archivo}";`, `import { ${def} } from "./defs/${id}-def.ts";`);
+  importsSitio.push(`import { ${comp}, defaultPreset as d_${comp} } from "./shaders-sitio/${archivo}";`);
+  reexports.push(`export { ${lista} } from "./shaders/${archivo}";`);
+  filasLab.push(`  "${id}": { build: ${comp}, presets: ${lista}, def: ${def}, usaImagen: ${usaImagen} },`);
+  filasSitio.push(`  "${id}": { build: ${comp}, defaults: d_${comp}.params, usaImagen: ${usaImagen} },`);
+  filasRemoto.push(`  "${id}": () => import("./shaders-sitio/${archivo}").then((m) => ({ build: m.${comp}, defaults: m.defaultPreset.params, usaImagen: ${usaImagen} })),`);
+}
+writeFileSync("src/registro-remoto.js", [generado, "", "export const SHADERS = {", ...filasRemoto, "};", ""].join("\n"));
+writeFileSync("src/registro.js", [generado, ...importsLab, "", "export const SHADERS = {", ...filasLab, "};", ""].join("\n"));
+writeFileSync("src/registro-sitio.js", [generado, ...importsSitio, "", "export const SHADERS = {", ...filasSitio, "};", ""].join("\n"));
+writeFileSync("src/react-presets.js", [generado, ...reexports, ""].join("\n"));
+
 // 1. Versión para el sitio: sin los presets de la librería, que solo usa el Shader Lab
 mkdirSync("src/shaders-sitio", { recursive: true });
-for (const archivo of readdirSync("src/shaders")) {
+for (const archivo of archivos) {
   const lineas = readFileSync(`src/shaders/${archivo}`, "utf8").split(/\r?\n/);
   const salida = [];
   let cierre = null;
@@ -26,20 +51,28 @@ const comun = {
   bundle: true, format: "esm", minify: true, target: "es2022", legalComments: "none", logLevel: "warning",
   alias: { react: "./src/react-stub.js", "react/jsx-runtime": "./src/react-stub.js", "@paper-design/shaders": "./src/paper.js", "@paper-design/shaders-react": "./src/react-presets.js" },
   external: ["https://cdn.jsdelivr.net/*"],
+  loader: { ".txt": "text", ".png": "dataurl", ".jpg": "dataurl", ".webp": "dataurl" },
 };
 mkdirSync("dist", { recursive: true });
 await build({ ...comun, entryPoints: ["src/sitio.js"], outfile: "dist/sitio.min.js" });
 copyFileSync("dist/sitio.min.js", "dist/sitio.txt");
-await build({ ...comun, entryPoints: ["src/configurador.js"], outfile: "dist/configurador.min.js", loader: { ".txt": "text" } });
+// Versión alojada: un archivo de entrada estable y una parte por shader, que se descarga solo si la página la usa
+await build({
+  ...comun, entryPoints: { shaders: "src/sitio-remoto.js" }, outdir: "dist/site/sitio/v1",
+  splitting: true, chunkNames: "partes/[name]-[hash]", banner: { js: "/* Powered by Paper Shaders — https://shaders.paper.design (Apache-2.0) */" },
+});
+await build({ ...comun, entryPoints: ["src/configurador.js"], outfile: "dist/configurador.min.js" });
 
-// 3. Salidas: la página del Shader Lab y el código para el footer de Webflow
-const sitio = readFileSync("dist/sitio.min.js", "utf8").trim();
-const bundle = readFileSync("dist/configurador.min.js", "utf8").replace(/<\/script/gi, "<\/script");
-const pagina = readFileSync("src/plantilla.html", "utf8").replace("/*BUNDLE*/", () => bundle);
+// 3. Salidas
 const AVISO = "/* Powered by Paper Shaders — https://shaders.paper.design (Apache-2.0) */";
+const sitio = readFileSync("dist/sitio.min.js", "utf8").trim();
+// Un "</script" dentro del código cerraría la etiqueta antes de tiempo
+const bundle = readFileSync("dist/configurador.min.js", "utf8").replace(/<\/script/gi, "<\\/script");
+const pagina = readFileSync("src/plantilla.html", "utf8").replace("/*BUNDLE*/", () => bundle);
 
-// Código para el Footer code de Webflow
+// Código para el Footer code de Webflow: completo, o una línea que carga la versión alojada
 writeFileSync("dist/footer-webflow.html", `<script type="module">\n${AVISO}\n${sitio}\n</script>\n`);
+writeFileSync("dist/footer-webflow-alojado.html", `<script type="module" src="https://shaderlab.spicyrender.studio/sitio/v1/shaders.js"></script>\n`);
 
 // Página para el Artifact de claude.ai (sin <head>: la publicación agrega el esqueleto)
 writeFileSync("dist/shader-lab.html", pagina);

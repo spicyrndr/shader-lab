@@ -2,3 +2,7 @@ node_modules/
 dist/
 tmp/
 src/shaders-sitio/
+src/registro.js
+src/registro-sitio.js
+src/react-presets.js
+src/registro-remoto.js
