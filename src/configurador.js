@@ -86,10 +86,18 @@ function diferencias(id, params) {
 
 const imagenPorDefecto = (id) => ({ tipo: TIPO_IMAGEN[id] ?? "foto", url: "" });
 
+// Medidas en px que el usuario dio a los paneles arrastrando sus bordes; null es la medida original
+function panelesGuardados(g) {
+  const p = {};
+  for (const k of ["izq", "der", "alto"]) p[k] = Number.isFinite(g?.[k]) ? g[k] : null;
+  return p;
+}
+
 function estadoInicial() {
-  const base = { pausado: reducirMovimiento, ranura: "colors.0" };
+  const base = { pausado: reducirMovimiento, ranura: "colors.0", paneles: panelesGuardados(null) };
   try {
     const g = JSON.parse(localStorage.getItem(CLAVE_GUARDADO) ?? "null");
+    if (g) base.paneles = panelesGuardados(g.paneles);
     if (g && SHADERS[g.id]) {
       const imagen = ["logo", "foto", "ninguna"].includes(g.imagen?.tipo) || (g.imagen?.tipo === "url" && g.imagen.url)
         ? { tipo: g.imagen.tipo, url: g.imagen.url ?? "" } : imagenPorDefecto(g.id);
@@ -117,7 +125,7 @@ function guardar() {
     const imagen = estado.imagen.tipo === "archivo" ? imagenPorDefecto(estado.id) : estado.imagen;
     localStorage.setItem(CLAVE_GUARDADO, JSON.stringify({
       id: estado.id, params: diferencias(estado.id, estado.params), preset: estado.preset, imagen,
-      aspecto: estado.aspecto, texto: estado.texto, pestana: estado.pestana,
+      aspecto: estado.aspecto, texto: estado.texto, pestana: estado.pestana, paneles: estado.paneles,
     }));
   } catch {}
 }
@@ -229,6 +237,72 @@ function aplicarPausa() {
 for (const b of document.querySelectorAll("[data-aspecto]")) b.addEventListener("click", () => { estado.aspecto = b.dataset.aspecto; aplicarAspecto(); guardar(); });
 for (const b of document.querySelectorAll("[data-texto]")) b.addEventListener("click", () => { estado.texto = b.dataset.texto; aplicarTexto(); guardar(); });
 $("#pausa").addEventListener("click", () => { estado.pausado = !estado.pausado; aplicarPausa(); });
+
+// El pie (resolución, avisos) mide lo que mediría un marco 16:9 en el espacio de la vista previa
+const escenario = $("#escenario");
+const visor = $("#visor");
+new ResizeObserver(() => {
+  escenario.style.setProperty("--ancho-pie", `${Math.min(visor.clientWidth, (visor.clientHeight * 16) / 9)}px`);
+}).observe(visor);
+
+// ---------- Pantalla completa ----------
+
+const botonCompleta = $("#completa");
+const botonSalir = $("#salir-completa");
+const elementoCompleto = () => document.fullscreenElement ?? document.webkitFullscreenElement;
+// Sin soporte (iPhone) o dentro de un iframe que no lo permite, el botón no aparece
+botonCompleta.hidden = !((document.fullscreenEnabled || document.webkitFullscreenEnabled) && (escenario.requestFullscreen || escenario.webkitRequestFullscreen));
+botonCompleta.addEventListener("click", () => {
+  const pedir = escenario.requestFullscreen ?? escenario.webkitRequestFullscreen;
+  Promise.resolve(pedir.call(escenario)).catch((e) => console.warn("Pantalla completa", e));
+});
+botonSalir.addEventListener("click", () => {
+  const salir = document.exitFullscreen ?? document.webkitExitFullscreen;
+  Promise.resolve(salir.call(document)).catch(() => {});
+});
+
+let reposo = 0;
+const enCompleta = () => escenario.classList.contains("es-completa");
+function dormir() {
+  clearTimeout(reposo);
+  escenario.classList.add("en-reposo");
+}
+// Cerrar aparece al mover el cursor (o tocar) y se oculta tras 2 s quieto
+function despertar() {
+  if (!enCompleta()) return;
+  escenario.classList.remove("en-reposo");
+  clearTimeout(reposo);
+  reposo = setTimeout(dormir, 2000);
+}
+function alCambiarCompleta() {
+  const activa = elementoCompleto() === escenario;
+  escenario.classList.toggle("es-completa", activa);
+  if (activa) {
+    despertar();
+    botonSalir.focus({ preventScroll: true });
+  } else {
+    clearTimeout(reposo);
+    escenario.classList.remove("en-reposo");
+    if (document.activeElement === botonSalir) botonCompleta.focus({ preventScroll: true });
+  }
+}
+document.addEventListener("fullscreenchange", alCambiarCompleta);
+document.addEventListener("webkitfullscreenchange", alCambiarCompleta);
+// Chrome envía pointermove sin que el cursor se mueva (al cambiar lo que hay debajo): solo cuenta si cambió de lugar
+let ultimaPosicion = "";
+escenario.addEventListener("pointermove", (e) => {
+  const posicion = `${e.screenX},${e.screenY}`;
+  if (posicion === ultimaPosicion) return;
+  ultimaPosicion = posicion;
+  despertar();
+});
+escenario.addEventListener("pointerdown", despertar);
+// En pantalla completa la vista previa cubre la ventana: el cursor sale de ella al salir de la ventana (relatedTarget
+// nulo). Al cambiar de modo el navegador avisa salidas hacia el botón de la barra, que se ignoran; y al tocar,
+// pointerleave llega al levantar el dedo, así que solo cuenta el ratón
+escenario.addEventListener("pointerleave", (e) => {
+  if (enCompleta() && e.pointerType === "mouse" && e.relatedTarget === null) dormir();
+});
 
 // ---------- Biblioteca ----------
 
@@ -365,43 +439,71 @@ function escribirRanura(ranura, hex) {
   }
 }
 
-// Conserva la transparencia (#rrggbbaa) al cambiar el color con el selector nativo
+// Conserva la transparencia (#rrggbbaa) al cambiar el color con el selector nativo o la paleta
 function conAlfa(anterior, nuevo) {
   return anterior && anterior.length === 9 ? nuevo + anterior.slice(7) : nuevo;
 }
 
+// Opacidad en % a partir del canal alfa del hex, y al revés. Con 100 % queda el hex de 6 cifras
+const opacidadDe = (hex) => (/^#[0-9a-f]{8}$/i.test(hex) ? Math.round(parseInt(hex.slice(7), 16) / 2.55) : 100);
+function conOpacidad(hex, pct) {
+  const base = hexParaSelector(hex);
+  return pct >= 100 ? base : base + Math.round(pct * 2.55).toString(16).padStart(2, "0");
+}
+
 function filaColor(ranura, etiqueta, { quitar } = {}) {
   const valor = leerRanura(ranura) ?? "#000000";
+  const elegir = () => { estado.ranura = ranura; marcarModificados(); };
+  // Lleva el valor nuevo a los controles de la fila (menos al que se está usando) y al shader
+  const poner = (hex, origen) => {
+    if (origen !== selector) selector.value = hexParaSelector(hex);
+    if (origen !== texto) texto.value = hex;
+    if (origen !== opacidad) opacidad.value = opacidadDe(hex);
+    chip.style.setProperty("--c", hex);
+    estado.ranura = ranura;
+    escribirRanura(ranura, hex);
+  };
   const selector = crear("input", {
     type: "color", class: "muestra-color", value: hexParaSelector(valor), "aria-label": `${etiqueta}: elegir color`,
-    oninput: (e) => {
-      const hex = conAlfa(leerRanura(ranura), e.target.value);
-      texto.value = hex;
-      selector.parentElement.style.setProperty("--c", hex);
-      estado.ranura = ranura;
-      escribirRanura(ranura, hex);
-    },
-    onfocus: () => { estado.ranura = ranura; marcarModificados(); },
+    oninput: (e) => poner(conAlfa(leerRanura(ranura), e.target.value), selector),
+    onfocus: elegir,
   });
+  const chip = crear("span", { class: "chip-color", style: `--c:${valor}` }, selector);
   const texto = crear("input", {
     type: "text", class: "hex", value: valor, spellcheck: "false", maxlength: "9", "aria-label": `${etiqueta}: valor hexadecimal`,
-    onfocus: () => { estado.ranura = ranura; marcarModificados(); },
+    onfocus: elegir,
     onchange: (e) => {
       const v = e.target.value.trim();
-      if (hexValido(v)) {
-        selector.value = hexParaSelector(v);
-        selector.parentElement.style.setProperty("--c", v);
-        escribirRanura(ranura, v);
-      } else e.target.value = leerRanura(ranura);
+      if (hexValido(v)) poner(v, texto);
+      else e.target.value = leerRanura(ranura);
     },
+  });
+  // Mientras se escribe se aplica cada número válido; al salir del campo se corrige a 0–100
+  const usarOpacidad = (e, final) => {
+    const n = Number(e.target.value);
+    if (e.target.value === "" || !Number.isFinite(n)) {
+      if (final) e.target.value = opacidadDe(leerRanura(ranura));
+      return;
+    }
+    const pct = Math.min(100, Math.max(0, Math.round(n)));
+    if (final) e.target.value = pct;
+    const hex = conOpacidad(leerRanura(ranura), pct);
+    if (hex !== leerRanura(ranura)) poner(hex, opacidad);
+  };
+  const opacidad = crear("input", {
+    type: "number", min: "0", max: "100", step: "1", value: opacidadDe(valor), "aria-label": `${etiqueta}: opacidad en porcentaje`,
+    onfocus: elegir,
+    oninput: (e) => usarOpacidad(e, false),
+    onchange: (e) => usarOpacidad(e, true),
   });
   return crear("div", {
     class: "ranura", "data-ranura": ranura,
-    onclick: (e) => { if (e.target === e.currentTarget) { estado.ranura = ranura; marcarModificados(); } },
+    onclick: (e) => { if (e.target === e.currentTarget) elegir(); },
   },
-  crear("span", { class: "chip-color", style: `--c:${valor}` }, selector),
+  chip,
   crear("span", { class: "ranura-nombre", text: etiqueta }),
   texto,
+  crear("label", { class: "opacidad", title: "Opacidad: 0 % es transparente" }, opacidad, crear("span", { "aria-hidden": "true", text: "%" })),
   quitar ? crear("button", { type: "button", class: "quitar", "aria-label": `Quitar ${etiqueta.toLowerCase()}`, text: "×", onclick: quitar }) : null);
 }
 
@@ -414,7 +516,7 @@ function bloqueColores(id, colorParams) {
       onclick: () => {
         const actual = leerRanura(estado.ranura);
         if (actual === undefined) estado.ranura = colorParams[0].isList ? `${colorParams[0].p.name}.0` : colorParams[0].p.name;
-        escribirRanura(estado.ranura, hex);
+        escribirRanura(estado.ranura, conAlfa(leerRanura(estado.ranura), hex));
         construirAjustes();
       },
     }));
@@ -729,8 +831,86 @@ $("#importar-form").addEventListener("submit", (e) => {
   $("#importar-estado").textContent = importar($("#importar-texto").value);
 });
 
+// ---------- Paneles ----------
+
+// Los bordes de la biblioteca, de los ajustes y de la vista previa se arrastran. El centro y el bloque de código
+// conservan un mínimo para que nada quede fuera de alcance.
+const consola = $(".consola");
+const MIN_CENTRO = 380;
+const MIN_SALIDA = 160;
+const TIRADORES = {
+  izq: {
+    el: $("#tirador-izq"), raiz: consola, css: "--ancho-izq", eje: "x", signo: 1, min: 160,
+    medida: () => $(".biblioteca").offsetWidth,
+    max: () => Math.min(440, consola.clientWidth - $(".ajustes").offsetWidth - MIN_CENTRO),
+  },
+  der: {
+    el: $("#tirador-der"), raiz: consola, css: "--ancho-der", eje: "x", signo: -1, min: 300,
+    medida: () => $(".ajustes").offsetWidth,
+    max: () => Math.min(600, consola.clientWidth - $(".biblioteca").offsetWidth - MIN_CENTRO),
+  },
+  alto: {
+    el: $("#tirador-alto"), raiz: $(".centro"), css: "--alto-escenario", eje: "y", signo: 1, min: 200,
+    medida: () => escenario.offsetHeight,
+    max: () => $(".centro").clientHeight - $(".barra-visor").offsetHeight - MIN_SALIDA,
+  },
+};
+
+function fijarPanel(clave) {
+  const t = TIRADORES[clave];
+  const v = estado.paneles[clave];
+  if (v == null) t.raiz.style.removeProperty(t.css);
+  else t.raiz.style.setProperty(t.css, `${Math.round(Math.max(t.min, Math.min(t.max(), v)))}px`);
+  t.el.setAttribute("aria-valuenow", t.medida());
+}
+const fijarPaneles = () => { for (const clave in TIRADORES) fijarPanel(clave); };
+
+for (const [clave, t] of Object.entries(TIRADORES)) {
+  t.el.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    t.el.setPointerCapture(e.pointerId);
+    const inicio = t.medida();
+    const origen = t.eje === "x" ? e.clientX : e.clientY;
+    const claseCuerpo = t.eje === "x" ? "arrastrando-x" : "arrastrando-y";
+    t.el.classList.add("es-activo");
+    document.body.classList.add(claseCuerpo);
+    const mover = (ev) => {
+      estado.paneles[clave] = inicio + t.signo * ((t.eje === "x" ? ev.clientX : ev.clientY) - origen);
+      fijarPanel(clave);
+    };
+    const soltar = () => {
+      t.el.removeEventListener("pointermove", mover);
+      t.el.removeEventListener("pointerup", soltar);
+      t.el.removeEventListener("pointercancel", soltar);
+      t.el.classList.remove("es-activo");
+      document.body.classList.remove(claseCuerpo);
+      // Se guarda la medida que quedó, ya dentro de los límites
+      if (estado.paneles[clave] != null) estado.paneles[clave] = t.medida();
+      guardar();
+    };
+    t.el.addEventListener("pointermove", mover);
+    t.el.addEventListener("pointerup", soltar);
+    t.el.addEventListener("pointercancel", soltar);
+  });
+  t.el.addEventListener("dblclick", () => { estado.paneles[clave] = null; fijarPanel(clave); guardar(); });
+  // Con el teclado: flechas de 16 px, con Mayús de 64 px
+  t.el.addEventListener("keydown", (e) => {
+    const sentido = (t.eje === "x" ? { ArrowLeft: -1, ArrowRight: 1 } : { ArrowUp: -1, ArrowDown: 1 })[e.key];
+    if (!sentido) return;
+    e.preventDefault();
+    estado.paneles[clave] = t.medida() + t.signo * sentido * (e.shiftKey ? 64 : 16);
+    fijarPanel(clave);
+    estado.paneles[clave] = t.medida();
+    guardar();
+  });
+}
+// Si la ventana se achica, las medidas guardadas se ajustan a lo que cabe
+addEventListener("resize", () => requestAnimationFrame(fijarPaneles));
+
 // ---------- Inicio ----------
 
+fijarPaneles();
 construirBiblioteca();
 aplicarAspecto();
 aplicarTexto();

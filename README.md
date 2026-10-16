@@ -2,7 +2,7 @@
 
 Configurador de fondos animados de SPICY RNDR, publicado en **https://shaderlab.spicyrender.studio**.
 
-Permite elegir entre 30 shaders (20 fondos generativos, 7 filtros de imagen y 3 animaciones de logo), ajustar colores y valores con vista previa en vivo y copiar el código para Webflow. Del mismo código sale el script del sitio, que convierte en fondo animado cualquier Div con el atributo `data-shader`. Lo que se ve en el Shader Lab es lo que sale en el sitio.
+Permite elegir entre 30 shaders (20 fondos generativos, 7 filtros de imagen y 3 animaciones de logo), ajustar colores (con opacidad, hasta transparencia total) y valores con vista previa en vivo y copiar el código para Webflow. La vista previa se puede ver en pantalla completa, y la biblioteca, los ajustes y el bloque de código se agrandan o achican arrastrando sus bordes (doble clic vuelve a la medida original). Del mismo código sale el script del sitio, que convierte en fondo animado cualquier Div con el atributo `data-shader`. Lo que se ve en el Shader Lab es lo que sale en el sitio.
 
 Usa [Paper Shaders](https://shaders.paper.design) 0.0.81 (licencia Apache 2.0, ver `licencias/`), sin React.
 

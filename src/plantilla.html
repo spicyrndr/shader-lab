@@ -48,10 +48,12 @@ code, .mono { font-family: var(--f-mono); }
 .meta a { color: var(--tenue); text-underline-offset: 2px; }
 .meta a:hover { color: var(--texto); }
 
+/* Los anchos de los lados y el alto de la vista previa se cambian arrastrando sus bordes (configurador.js) */
 .consola {
+  position: relative;
   min-height: 0;
   display: grid;
-  grid-template-columns: 228px minmax(0, 1fr) 356px;
+  grid-template-columns: var(--ancho-izq, 228px) minmax(0, 1fr) var(--ancho-der, 356px);
   border: 1px solid var(--linea);
   border-radius: 14px;
   background: var(--panel);
@@ -71,7 +73,7 @@ code, .mono { font-family: var(--f-mono); }
 .biblioteca { border-right: 1px solid var(--linea); overflow-y: auto; padding: 14px 12px 20px; display: grid; align-content: start; gap: 18px; }
 .biblioteca-lista { display: grid; gap: 18px; }
 .grupo { display: grid; gap: 8px; }
-.grupo-lista { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.grupo-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
 /* align-content: start evita que la fila de la miniatura se estire cuando la ficha vecina tiene el nombre en dos líneas */
 .ficha {
   display: grid; align-content: start; gap: 6px; padding: 5px; text-align: left;
@@ -86,8 +88,12 @@ code, .mono { font-family: var(--f-mono); }
 }
 .ficha-nombre { font-size: 12px; line-height: 1.2; color: var(--texto); }
 
-/* Centro */
-.centro { overflow-y: auto; min-width: 0; display: grid; align-content: start; }
+/* Centro: la vista previa toma su alto (--alto-escenario, que se cambia arrastrando su borde) mientras al bloque de
+   código le queden 160 px; este ocupa el resto con su propio desplazamiento */
+.centro {
+  overflow-y: auto; min-width: 0; display: grid;
+  grid-template-rows: auto minmax(200px, var(--alto-escenario, calc(min(54vh, 560px) + 66px))) auto minmax(160px, 1fr);
+}
 .barra-visor { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--linea); }
 .control-visor { display: flex; align-items: center; gap: 8px; }
 .control-visor > span { font-size: 12px; color: var(--tenue); }
@@ -100,25 +106,30 @@ code, .mono { font-family: var(--f-mono); }
 .boton { border: 0; background: var(--rojo); color: var(--sobre-rojo); font-weight: 600; padding: 7px 14px; border-radius: 8px; }
 .boton-sec { border: 1px solid var(--linea); background: var(--panel-alto); color: var(--texto); padding: 6px 12px; border-radius: 8px; }
 .boton-sec:hover { border-color: var(--apagado); }
-#pausa { margin-left: auto; min-width: 104px; }
+.acciones-visor { margin-left: auto; display: flex; gap: 8px; }
+#pausa { min-width: 104px; }
+.boton-icono { display: inline-grid; place-items: center; width: 34px; height: 34px; padding: 0; }
 
+/* La vista previa se ajusta al alto del escenario; --ancho-pie (configurador.js) alinea el pie con un marco 16:9 */
 .escenario {
-  --alto: min(54vh, 560px);
-  display: grid; justify-items: center; gap: 10px;
+  position: relative;
+  min-height: 0;
+  display: grid; grid-template-rows: minmax(0, 1fr); justify-items: center; gap: 10px;
   padding: 24px 16px 16px;
   background-color: var(--negro);
   background-image: radial-gradient(var(--linea) 1px, transparent 1px);
   background-size: 18px 18px;
   border-bottom: 1px solid var(--linea);
 }
+.visor { container-type: size; justify-self: stretch; min-height: 0; display: grid; place-items: center; }
+/* El tablero de fondo deja ver las zonas transparentes: en el sitio ahí se ve lo que haya detrás del Div */
 .marco {
   position: relative;
-  width: min(100%, calc(var(--alto) * var(--ratio, 1.7778)));
+  width: min(100cqw, 100cqh * var(--ratio, 1.7778));
   aspect-ratio: var(--ratio, 1.7778);
-  max-width: 100%;
   border-radius: 12px;
   overflow: hidden;
-  background: #000;
+  background: repeating-conic-gradient(#1c1c1e 0 25%, #111112 0 50%) 0 0 / 16px 16px;
   box-shadow: 0 0 0 1px var(--linea), 0 20px 60px rgb(0 0 0 / 0.5);
 }
 .marco.es-circulo { border-radius: 50%; }
@@ -133,13 +144,44 @@ code, .mono { font-family: var(--f-mono); }
 .es-circulo .muestra { justify-content: center; align-items: center; text-align: center; }
 .muestra-eyebrow { font: 650 12px/1.2 var(--f-titulo); font-stretch: 80%; text-transform: uppercase; letter-spacing: 0.16em; opacity: 0.85; }
 .muestra-titulo { margin: 0; font: 700 clamp(20px, 3.2vw, 44px)/1.04 var(--f-titulo); max-width: 16ch; text-wrap: balance; }
-.hud { display: flex; flex-wrap: wrap; gap: 4px 16px; width: min(100%, calc(var(--alto) * 1.7778)); font: 11px/1.4 var(--f-mono); color: var(--apagado); font-variant-numeric: tabular-nums; }
+.hud { display: flex; flex-wrap: wrap; gap: 4px 16px; width: var(--ancho-pie, 100%); font: 11px/1.4 var(--f-mono); color: var(--apagado); font-variant-numeric: tabular-nums; }
 #hud-estado { color: var(--rojo); }
-.aviso { margin: 0; width: min(100%, calc(var(--alto) * 1.7778)); font-size: 12px; color: var(--tenue); }
+.aviso { margin: 0; width: var(--ancho-pie, 100%); font-size: 12px; color: var(--tenue); }
 .error { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; padding: 24px; text-align: center; background: var(--panel-alto); color: var(--texto); }
 
+/* Pantalla completa: solo la vista previa, con la forma elegida. Cerrar se oculta si el cursor se queda quieto o sale */
+.salir-completa {
+  position: absolute; top: 16px; right: 16px; z-index: 3;
+  display: none; align-items: center; gap: 6px; padding: 7px 14px;
+  border: 1px solid rgb(255 255 255 / 0.18); border-radius: 999px;
+  background: rgb(11 11 12 / 0.72); color: #ffffff; font-size: 13px;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+.salir-completa span { font-size: 17px; line-height: 1; }
+.escenario.es-completa { padding: 0; border: 0; background: var(--negro); }
+.es-completa .salir-completa { display: inline-flex; }
+.es-completa .hud, .es-completa .aviso { display: none; }
+.es-completa .marco:not(.es-circulo) { border-radius: 0; }
+.es-completa .marco { box-shadow: none; }
+.es-completa.en-reposo { cursor: none; }
+.es-completa.en-reposo .salir-completa:not(:hover, :focus-visible) { opacity: 0; pointer-events: none; }
+
+/* Bordes que se arrastran. Doble clic vuelve a la medida original */
+.tirador { z-index: 4; touch-action: none; }
+.tirador::after { content: ""; position: absolute; background: var(--rojo); opacity: 0; }
+.tirador:hover::after, .tirador:focus-visible::after, .tirador.es-activo::after { opacity: 1; }
+.tirador:focus-visible { outline: 0; }
+.tirador-v { position: absolute; top: 0; bottom: 0; width: 9px; cursor: col-resize; }
+.tirador-v::after { top: 0; bottom: 0; left: 4px; width: 2px; }
+#tirador-izq { left: calc(var(--ancho-izq, 228px) - 5px); }
+#tirador-der { right: calc(var(--ancho-der, 356px) - 5px); }
+.tirador-h { position: relative; height: 9px; margin: -5px 0 -4px; cursor: row-resize; }
+.tirador-h::after { left: 0; right: 0; top: 3px; height: 2px; }
+.arrastrando-x, .arrastrando-x * { cursor: col-resize !important; user-select: none; }
+.arrastrando-y, .arrastrando-y * { cursor: row-resize !important; user-select: none; }
+
 /* Salida */
-.salida { padding: 14px 16px 22px; display: grid; gap: 14px; min-width: 0; }
+.salida { padding: 14px 16px 22px; display: grid; align-content: start; gap: 14px; min-width: 0; min-height: 0; overflow-y: auto; }
 .salida-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .salida-cab h2 { margin: 0; font: 700 18px/1.1 var(--f-titulo); }
 .pestanas { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px; background: var(--panel-alto); border-radius: 8px; }
@@ -220,7 +262,7 @@ input[type="range"] { width: 100%; margin: 0; accent-color: var(--rojo); }
 .paleta-color { aspect-ratio: 1; padding: 0; border-radius: 6px; background: var(--c); border: 1px solid rgb(255 255 255 / 0.16); }
 .paleta-color:hover { transform: translateY(-1px); }
 .ranura {
-  display: grid; grid-template-columns: 30px minmax(0, 1fr) 96px 26px; align-items: center; gap: 8px;
+  display: grid; grid-template-columns: 30px minmax(0, 1fr) 82px 58px 26px; align-items: center; gap: 8px;
   padding: 4px; border: 1px solid transparent; border-radius: 8px;
 }
 .ranura.es-activa { border-color: var(--rojo); background: var(--rojo-suave); }
@@ -233,6 +275,15 @@ input[type="range"] { width: 100%; margin: 0; accent-color: var(--rojo); }
 .muestra-color { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
 .ranura-nombre { font-size: 13px; color: var(--texto); min-width: 0; }
 .hex { width: 100%; padding: 4px 6px; background: var(--panel-alto); border: 1px solid var(--linea); border-radius: 6px; font: 12px/1.4 var(--f-mono); text-transform: lowercase; }
+/* Opacidad del color en %: 0 es transparente del todo */
+.opacidad {
+  display: flex; align-items: center; padding: 0 6px 0 2px;
+  background: var(--panel-alto); border: 1px solid var(--linea); border-radius: 6px;
+  font: 12px/1.4 var(--f-mono); color: var(--apagado);
+}
+.opacidad:focus-within { outline: 2px solid var(--foco); outline-offset: 2px; }
+.opacidad input { width: 100%; min-width: 0; padding: 4px 2px 4px 4px; border: 0; background: transparent; font: inherit; color: var(--texto); text-align: right; font-variant-numeric: tabular-nums; }
+.opacidad input:focus-visible { outline: 0; }
 .quitar { width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--apagado); font-size: 16px; line-height: 1; }
 .quitar:hover { background: var(--panel-alto); color: var(--texto); }
 .agregar { justify-self: start; border: 1px dashed var(--linea); background: transparent; color: var(--tenue); padding: 5px 10px; border-radius: 8px; font-size: 13px; }
@@ -263,6 +314,7 @@ label.boton-sec { display: inline-block; cursor: pointer; font-size: 13px; }
   .grupo { flex: none; }
   .grupo-lista { display: flex; }
   .ficha { width: 112px; flex: none; }
+  .tirador-v { display: none; }
 }
 
 /* Teléfono: una sola columna; la vista previa queda fija arriba mientras se ajusta */
@@ -274,12 +326,16 @@ label.boton-sec { display: inline-block; cursor: pointer; font-size: 13px; }
   .biblioteca { order: 0; }
   .barra-visor { order: 1; }
   .escenario {
-    order: 2; --alto: 34vh;
+    order: 2;
     position: sticky; top: env(safe-area-inset-top, 0px); z-index: 3;
     padding: 12px 16px 10px;
   }
+  /* Fija arriba, la vista previa mide lo que el marco (hasta 34vh de alto) */
+  .escenario:not(.es-completa) .visor { container-type: inline-size; }
+  .escenario:not(.es-completa) .marco { width: min(100cqw, 34vh * var(--ratio, 1.7778)); }
+  .tirador-h { display: none; }
   .ajustes { order: 3; overflow: visible; border-left: 0; display: block; }
-  .salida { order: 4; border-top: 1px solid var(--linea); }
+  .salida { order: 4; border-top: 1px solid var(--linea); overflow: visible; }
   #ajustes-cuerpo { overflow: visible; }
   .attr-fila { grid-template-columns: minmax(0, 1fr) auto; }
   .attr-fila .attr-nombre { grid-column: 1 / -1; }
@@ -319,22 +375,31 @@ label.boton-sec { display: inline-block; cursor: pointer; font-size: 13px; }
             <button type="button" class="segmento" data-texto="ninguno">Sin texto</button>
           </div>
         </div>
-        <button type="button" id="pausa" class="boton-sec" aria-pressed="false">Pausar</button>
+        <div class="acciones-visor">
+          <button type="button" id="pausa" class="boton-sec" aria-pressed="false">Pausar</button>
+          <button type="button" id="completa" class="boton-sec boton-icono" aria-label="Pantalla completa" title="Pantalla completa" hidden>
+            <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>
+          </button>
+        </div>
       </div>
 
-      <div class="escenario">
-        <div id="marco" class="marco">
-          <div id="lienzo"></div>
-          <div id="procesando" class="procesando" hidden>Procesando la imagen…</div>
-          <div id="muestra" class="muestra">
-            <span class="muestra-eyebrow">Producción audiovisual</span>
-            <p class="muestra-titulo">Historias que se ven y se escuchan</p>
+      <div id="escenario" class="escenario">
+        <div id="visor" class="visor">
+          <div id="marco" class="marco">
+            <div id="lienzo"></div>
+            <div id="procesando" class="procesando" hidden>Procesando la imagen…</div>
+            <div id="muestra" class="muestra">
+              <span class="muestra-eyebrow">Producción audiovisual</span>
+              <p class="muestra-titulo">Historias que se ven y se escuchan</p>
+            </div>
+            <div id="error-visor" class="error" hidden>Este navegador no pudo iniciar WebGL 2, que es lo que necesitan los shaders. Pruebe con Chrome, Edge, Firefox o Safari actualizados.</div>
           </div>
-          <div id="error-visor" class="error" hidden>Este navegador no pudo iniciar WebGL 2, que es lo que necesitan los shaders. Pruebe con Chrome, Edge, Firefox o Safari actualizados.</div>
         </div>
         <div class="hud" aria-live="polite"><span id="hud-id"></span><span id="hud-res"></span><span id="hud-estado"></span></div>
         <p id="aviso-movimiento" class="aviso" hidden>Su sistema pide reducir el movimiento, así que la vista previa empieza en pausa. En el sitio, el fondo también queda fijo para quien tenga esa preferencia.</p>
+        <button type="button" id="salir-completa" class="salir-completa" title="Salir de pantalla completa (Esc)"><span aria-hidden="true">×</span> Cerrar</button>
       </div>
+      <div id="tirador-alto" class="tirador tirador-h" role="separator" aria-orientation="horizontal" aria-label="Alto de la vista previa" tabindex="0" title="Arrastre para cambiar el alto. Doble clic: alto original"></div>
 
       <div class="salida">
         <div class="salida-cab">
@@ -410,6 +475,9 @@ label.boton-sec { display: inline-block; cursor: pointer; font-size: 13px; }
       </div>
       <div id="ajustes-cuerpo"></div>
     </aside>
+
+    <div id="tirador-izq" class="tirador tirador-v" role="separator" aria-orientation="vertical" aria-label="Ancho de la biblioteca" tabindex="0" title="Arrastre para cambiar el ancho. Doble clic: ancho original"></div>
+    <div id="tirador-der" class="tirador tirador-v" role="separator" aria-orientation="vertical" aria-label="Ancho de los ajustes" tabindex="0" title="Arrastre para cambiar el ancho. Doble clic: ancho original"></div>
   </main>
 </div>
 
