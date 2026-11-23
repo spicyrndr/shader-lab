@@ -351,6 +351,43 @@ export const MARCA = [
 ];
 
 // Presets propios además de los de la librería
+// «Spicy» va primero: es el punto de partida al elegir un shader. Solo usa colores de MARCA (a veces con opacidad);
+// lo que no se indica queda como en el preset base. Lente no tiene colores, así que no lleva versión Spicy.
+const spicy = (params) => [{ name: "Spicy", params }];
 export const PRESETS_EXTRA = {
-  "grain-gradient": [{ name: "Spicy", params: { colors: ["#E43330"], colorBack: "#000000", noise: 0 } }],
+  // Degradados
+  "grain-gradient": spicy({ colors: ["#E43330"], colorBack: "#000000", noise: 0 }),
+  "mesh-gradient": spicy({ colors: ["#E43330", "#1A1A1A", "#E43330", "#000000"] }),
+  "static-mesh-gradient": spicy({ colors: ["#E43330", "#000000", "#343435", "#E43330"] }),
+  "static-radial-gradient": spicy({ colors: ["#E43330", "#E4333080", "#F4F4F4"], colorBack: "#000000" }),
+  // Fluidos y ruido
+  warp: spicy({ colors: ["#000000", "#E43330", "#1A1A1A", "#E43330"] }),
+  swirl: spicy({ colors: ["#F4F4F4", "#E43330", "#1A1A1A"], colorBack: "#000000" }),
+  "smoke-ring": spicy({ colors: ["#E43330"], colorBack: "#000000" }),
+  "neuro-noise": spicy({ colorFront: "#FFFFFF", colorMid: "#E43330", colorBack: "#000000" }),
+  "perlin-noise": spicy({ colorFront: "#E43330", colorBack: "#000000" }),
+  "simplex-noise": spicy({ colors: ["#000000", "#E43330", "#1A1A1A", "#E43330", "#F4F4F4"] }),
+  // Patrones
+  "dot-grid": spicy({ colorFill: "#E43330", colorStroke: "#FFFFFF", colorBack: "#000000" }),
+  "dot-orbit": spicy({ colors: ["#F4F4F4", "#E43330", "#E43330", "#343435", "#1A1A1A"], colorBack: "#000000" }),
+  dithering: spicy({ colorFront: "#E43330", colorBack: "#000000" }),
+  waves: spicy({ colorFront: "#E43330", colorBack: "#000000" }),
+  voronoi: spicy({ colors: ["#E43330", "#343435"], colorGlow: "#FFFFFF", colorGap: "#000000" }),
+  spiral: spicy({ colorFront: "#E43330", colorBack: "#000000" }),
+  // Luz y formas
+  "god-rays": spicy({ colors: ["#E4333070", "#E43330F0", "#FFFFFF", "#E43330"], colorBloom: "#E43330", colorBack: "#000000" }),
+  "pulsing-border": spicy({ colors: ["#E43330", "#FFFFFF", "#E43330CC"], colorBack: "#000000" }),
+  metaballs: spicy({ colors: ["#E43330", "#F4F4F4", "#E43330", "#9E9E9E", "#E43330"], colorBack: "#000000" }),
+  "color-panels": spicy({ colors: ["#E43330", "#F4F4F4", "#656565", "#E43330", "#D8D8D8"], colorBack: "#000000" }),
+  // Filtros de imagen
+  water: spicy({ colorHighlight: "#E43330", colorBack: "#000000" }),
+  "fluted-glass": spicy({ colorHighlight: "#E43330", colorShadow: "#000000" }),
+  "paper-texture": spicy({ colorBack: "#F4F4F4", colorPaper: "#FFFFFF", colorShadow: "#D8D8D8" }),
+  "halftone-dots": spicy({ colorFront: "#E43330", colorBack: "#000000" }),
+  "halftone-cmyk": spicy({ colorBack: "#F4F4F4", colorC: "#9E9E9E", colorM: "#E43330", colorY: "#D8D8D8", colorK: "#000000" }),
+  "image-dithering": spicy({ colorFront: "#E43330", colorHighlight: "#F4F4F4", colorBack: "#000000" }),
+  // Animaciones de logo
+  "liquid-metal": spicy({ colorTint: "#E43330", colorBack: "#000000" }),
+  "gem-smoke": spicy({ colors: ["#E43330", "#F4F4F4"], colorInner: "#1A1A1A", colorBack: "#000000" }),
+  heatmap: spicy({ colors: ["#343435", "#E43330", "#E43330", "#F4F4F4", "#FFFFFF"], colorBack: "#000000" }),
 };

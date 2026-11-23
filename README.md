@@ -70,7 +70,7 @@ Las imágenes de Webflow (Assets y CMS) permiten CORS, así que funcionan tal cu
 |---|---|
 | `shaders/` | Envoltorios de `@paper-design/shaders-react@0.0.81` (`dist/shaders/*.js`), copiados sin cambios. `react-stub.js` sustituye a React para que devuelvan los uniforms en lugar de un componente |
 | `defs/` | Rangos y descripciones de cada parámetro, del repositorio de Paper (`docs/src/shader-defs`, commit `43cd68d`, versión 0.0.81) |
-| `textos.js` | Textos en español, grupos de la biblioteca, paleta de marca y presets propios (por ejemplo «Spicy») |
+| `textos.js` | Textos en español, grupos de la biblioteca, paleta de marca y el preset «Spicy» de cada shader (solo colores de la marca; es el punto de partida al elegir uno) |
 | `sitio-comun.js` | Lógica del script del sitio: lee `data-shader`, `data-shader-params`, atributos sueltos como `data-colors` y la imagen |
 | `sitio.js`, `sitio-remoto.js` | Entradas del script completo y del alojado (este carga cada shader con `import()`) |
 | `montaje.js` | Prepara cada shader: carga imágenes y espera el procesado de los logos (`suspend.js`, de la librería) |
